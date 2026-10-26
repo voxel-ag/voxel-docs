@@ -1,0 +1,67 @@
+---
+title: "Errors"
+description: "Error codes from the HTTP and WebSocket endpoints, and what to do."
+---
+
+## HTTP
+
+Every error carries an `error` string. Route selection refusals also carry a machine-readable `code`, a `hint`, the resolved mints and the figures that caused the refusal.
+
+```json
+{"error":"no_route","input_mint":"So111…","output_mint":"EPjF…"}
+{"error":"price_impact_too_high","code":"price_impact_too_high","price_impact_bps":9775,"max_price_impact_bps":1000,"out_atoms":…,"input_mint":"So111…","output_mint":"EPjF…","hint":"…"}
+{"error":"…","pool":"58oQ…"}
+```
+
+| Status | `error` | Meaning | What to do |
+|---|---|---|---|
+| 400 | `bad input_mint`, `bad output_mint` | The quote mint is not base58 and not a known symbol | Fix the mint |
+| 400 | `invalid input_mint`, `invalid output_mint`, `invalid user_wallet` | A swap mint or the wallet did not parse | Fix the request |
+| 400 | `bad mint` | The path mint on `/v1/token/{mint}` or `/v1/pools/{mint}` is not base58 | Send the mint address, not a symbol |
+| 400 | plain text, not JSON | A required parameter is missing or has the wrong type, for example `Query deserialize error: missing field …` | Fix the request |
+| 401 | `unauthorized` | The key is missing or wrong | Only applies once keys are issued |
+| 404 | `no_route` | No path between the tokens with enough liquidity | Try a smaller amount, raise `max_hops`, or lower `min_liquidity`. A new token may have no pool yet |
+| 422 | `price_impact_too_high` | Every route exceeds `max_price_impact_bps` | Reduce the size, or raise the ceiling if the impact is acceptable |
+| 422 | `round_trip_unsound` | Swapping the output straight back would profit, which signals stale or broken pool state | Do not force it. Retry shortly; the pool usually updates within a slot |
+| 500 | varies, with `pool` | The route could not be compiled into a transaction | Retry. Report the pool if it persists |
+| 503 | `compute pool unavailable` | Quote capacity is exhausted | Retry with backoff |
+
+`no_route` and both 422 refusals are returned identically by `/v1/quote`, `/v1/swap` and the quote stream, because all three run the same selection.
+
+## Quote stream
+
+Errors are pushed on the socket as `{"error": "…"}` with no envelope:
+
+| `error` | Meaning |
+|---|---|
+| `bad subscribe frame` | The frame was not valid JSON or lacked a required field |
+| `bad mint` | A mint did not parse |
+| `no_route` | No route for the pair right now. The subscription stays open and re-tries each tick |
+
+## Market stream
+
+Errors are typed frames with an `id` echoing the request:
+
+```json
+{"type":"error","id":"1","code":"EMPTY_FILTER","message":"…","ts":…}
+```
+
+| Code | Meaning | What to do |
+|---|---|---|
+| `INVALID_JSON` | The frame did not parse | Fix the frame |
+| `UNKNOWN_METHOD` | `method` is not `subscribe`, `unsubscribe` or `ping` | Fix the frame |
+| `UNKNOWN_CHANNEL` | `channel` is not `pools` or `prices` | Fix the frame |
+| `EMPTY_FILTER` | No `pools`, `mints`, `dex` or `all: true` | Add a filter or ask for `all` explicitly |
+| `TOO_MANY_POOLS`, `TOO_MANY_MINTS` | Over the limit in `welcome` | Split across sockets |
+| `INVALID_MINT` | A mint did not parse | Fix the mint |
+| `WATCH_CAPACITY` | The server cannot take more subscriptions right now | Retry later |
+| `RATE_LIMITED` | More than 20 client frames in 10 s | Slow down |
+
+### Notices and close codes
+
+| Signal | Meaning | What to do |
+|---|---|---|
+| `{"type":"notice","code":"lagged"}` | You are reading slower than the server pushes; batches were dropped | Re-snapshot from [`/v1/pools/{mint}`](/api/pools) and consider `intervalMs` |
+| Close `1013` | Three lag notices in 60 s | Reconnect with a coarser subscription |
+| Close `4008` | No traffic for 120 s | Send pings or reconnect |
+| HTTP `503` `TOO_MANY_CONNECTIONS` | More than 8 sockets from this IP. Refused before the WebSocket upgrade | Close others first |

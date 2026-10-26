@@ -1,0 +1,73 @@
+---
+title: "Quote stream"
+description: "WebSocket /v1/quote-stream keeps one quote live without polling."
+---
+
+```
+wss://swap-api.sodae.io/v1/quote-stream
+```
+
+Subscribe to one pair and amount. The server re-quotes it every 300 ms and pushes a new quote whenever the output changes. This is what the Voxel app uses to keep the price on screen fresh.
+
+## Subscribe
+
+Send one JSON frame after connecting. Sending another frame replaces the subscription on the same socket.
+
+```json
+{
+  "input_mint": "SOL",
+  "output_mint": "USDC",
+  "amount": 1000000000,
+  "slippage_bps": 50,
+  "max_hops": 3
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `input_mint` | string | required | Mint or symbol |
+| `output_mint` | string | required | Mint or symbol |
+| `amount` | integer | required | Input amount, base units |
+| `slippage_bps` | integer | `50` | Slippage tolerance |
+| `max_hops` | integer | `3` | Longest path considered |
+
+## Messages
+
+Each push is a full [quote response](/api/quote#response) with no envelope:
+
+```json
+{"input_mint":"So111…","output_mint":"EPjF…","in_atoms":1000000000,"out_atoms":104555250,"min_out_atoms":104032473,"route":[…],"splits":[],"provider":"soda"}
+```
+
+Errors arrive on the same socket as a small object:
+
+```json
+{"error":"no_route"}
+{"error":"bad mint"}
+{"error":"bad subscribe frame"}
+```
+
+Tell the two apart by the presence of `error`. After an error the subscription stays open; send a new frame to change the pair or amount.
+
+## Example
+
+```typescript
+const ws = new WebSocket("wss://swap-api.sodae.io/v1/quote-stream");
+ws.onopen = () =>
+  ws.send(JSON.stringify({ input_mint: "SOL", output_mint: "USDC", amount: 1_000_000_000 }));
+ws.onmessage = (ev) => {
+  const msg = JSON.parse(ev.data);
+  if ("error" in msg) return console.warn(msg.error);
+  console.log("out", msg.out_atoms);
+};
+```
+
+To re-price a new amount, send another subscribe frame. There is no need to reconnect.
+
+## Behaviour
+
+- Only changes are pushed. A quiet pair can go seconds without a message. The socket is still live.
+- Reconnect with backoff on close. The app reconnects from 500 ms up to 15 s.
+- One subscription per socket. Open a socket per pair you watch.
+
+For pool-level and USD price data across many tokens, use the [market stream](/api/market-stream).

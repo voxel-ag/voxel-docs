@@ -1,0 +1,31 @@
+---
+title: "Prices"
+description: "GET /v1/price returns USD prices derived from live routing."
+---
+
+```
+GET https://swap-api.sodae.io/v1/price?mints=SOL,EPjF…,DezX…
+```
+
+Up to 50 mints or symbols, comma separated.
+
+```json
+{
+  "So11111111111111111111111111111111111111112": {"usdPrice": 104.56, "slot": 445042502, "decimals": 9},
+  "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": {"usdPrice": 0.0000211, "slot": 445042498, "decimals": 5}
+}
+```
+
+The response follows the Jupiter price shape, keyed by canonical mint address.
+
+## How the price is made
+
+The price is what a small swap would realise. The engine quotes $10 of USDC into the token through the live router and inverts the result, so the number includes fees and impact at that size. If $10 finds no sound route, it tries $100, then $1,000. It is not an oracle read or a time-weighted average, and it moves the moment a pool that prices the token trades.
+
+Prices are cached for about half a second per mint.
+
+## Missing tokens
+
+A token with no route from USDC is left out of the response rather than returned as `null`. Compare the keys you get back with the mints you asked for.
+
+The same value is pushed live on the `prices` channel of the [market stream](/api/market-stream).

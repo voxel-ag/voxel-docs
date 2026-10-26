@@ -1,0 +1,62 @@
+---
+title: "API overview"
+description: "Base URL, authentication, conventions and limits."
+---
+
+| | |
+|---|---|
+| Base URL | `https://swap-api.sodae.io` |
+| WebSocket | `wss://swap-api.sodae.io/v1/quote-stream`, `wss://swap-api.sodae.io/v1/stream` |
+| Format | JSON over HTTPS |
+| Network | Solana mainnet |
+
+## Authentication
+
+No API key is required today. The API is open for integration and the app.
+
+When keys are introduced they will be sent as a header, or as a query parameter for browsers, which cannot set headers on a WebSocket:
+
+```
+Authorization: Bearer <key>
+?key=<key>
+```
+
+A request with a bad key answers `401 {"error":"unauthorized"}`.
+
+## Conventions
+
+- **Field names are `snake_case`**, except [`/v1/price`](/api/prices), which follows the Jupiter price shape, and [`/v1/stream`](/api/market-stream), which is camelCase.
+- **Amounts are integers in base units.** `in_atoms`, `out_atoms` and `amount` are raw token units, never decimals. Fields ending in `_ui` are decimal floats for display only.
+- **Amounts are JSON numbers.** A value above 2^53 loses precision in a double-based parser such as `JSON.parse`. Use a bigint-aware parser when amounts can be large.
+- **Fees, slippage and price impact are basis points.** `50` means 0.5%.
+- **Symbols are accepted for common tokens** anywhere a mint is taken, in any case: `SOL`, `WSOL`, `USDC`, `USDT`, `JUP`, `BONK`, `JITOSOL`, `MSOL`. The exceptions are the path mints of `GET /v1/token/{mint}` and `GET /v1/pools/{mint}`, which take base58 only.
+- **Venue names** in `dex` fields are display names such as `Raydium AMM` or `Meteora DLMM`. See [Venues](/venues).
+
+## Health
+
+```bash
+curl https://swap-api.sodae.io/health
+```
+
+```json
+{"status":"ok","pair_count":1467837,"verified_tokens":3202}
+```
+
+## Endpoints
+
+| Method | Path | Page |
+|---|---|---|
+| `GET` | `/v1/quote` | [Quote](/api/quote) |
+| `POST` | `/v1/swap` | [Swap](/api/swap) |
+| `WS` | `/v1/quote-stream` | [Quote stream](/api/quote-stream) |
+| `WS` | `/v1/stream` | [Market stream](/api/market-stream) |
+| `GET` | `/v1/price` | [Prices](/api/prices) |
+| `GET` | `/v1/token/{mint}` | [Tokens](/api/tokens) |
+| `GET` | `/v1/tokens` | [Tokens](/api/tokens) |
+| `GET` | `/v1/tokens/search` | [Tokens](/api/tokens) |
+| `GET` | `/v1/pools/{mint}` | [Pools](/api/pools) |
+| `GET` | `/health` | above |
+
+## Errors
+
+Errors carry an `error` string. Selection refusals also carry `code`. See [Errors](/errors).

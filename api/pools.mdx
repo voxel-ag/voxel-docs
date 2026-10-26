@@ -1,0 +1,52 @@
+---
+title: "Pools"
+description: "GET /v1/pools/{mint} lists every pool a token trades on."
+---
+
+```
+GET https://swap-api.sodae.io/v1/pools/{mint}?limit=60&other=USDC
+```
+
+`{mint}` is a base58 mint address. Symbols are not accepted in the path.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `limit` | `60` | 1 to 5000 |
+| `other` | any | Restrict to pools against this counterparty mint or symbol |
+
+Rows are sorted by quote-side reserve, largest first.
+
+```json
+{
+  "mint": "So11111111111111111111111111111111111111112",
+  "head_slot": 445015454,
+  "total": 1413696,
+  "quotable": 1161549,
+  "mint_usd": 104.72,
+  "by_dex": [
+    {"dex": "Meteora DLMM", "pools": 3443, "quotable": 3400},
+    {"dex": "Raydium AMM", "pools": 2981, "quotable": 2910}
+  ],
+  "pools": [
+    {"pool": "8RXJ…", "dex": "Meteora", "other": "3ehU…", "price": 6.3737,
+     "token_is_base": false, "quote_reserve": 8027122586.07, "base_reserve": 1099735081.48,
+     "last_update_slot": 441269190, "age_slots": 3746367, "quotable": false}
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `head_slot` | The slot the engine is at |
+| `total`, `quotable` | Pools known for this token, and how many are currently priceable |
+| `mint_usd` | USD price of the token, or `null` until it has been priced |
+| `by_dex` | Counts per venue |
+| `pools[].price` | Quote per base from the pool's last trade |
+| `pools[].token_is_base` | Whether the requested token is the base side of the pool |
+| `pools[].quote_reserve`, `base_reserve` | Reserves in UI units |
+| `pools[].last_update_slot`, `age_slots` | When the pool last changed, and how long ago in slots |
+| `pools[].quotable` | Whether the router would consider the pool right now |
+
+A large `age_slots` means the pool has not traded recently, not that data is missing. Every pool streams.
+
+Use this endpoint to re-snapshot after a `lagged` notice on the [market stream](/api/market-stream).

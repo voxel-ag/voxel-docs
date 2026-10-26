@@ -1,0 +1,78 @@
+---
+title: "Quickstart"
+description: "From zero to a signed swap in three steps."
+---
+
+The API lives at `https://swap-api.sodae.io`. No account or API key is needed today. See [API overview](/api/overview) for conventions.
+
+<Steps>
+  <Step title="Get a quote">
+    Amounts are in the token's base units. 1 SOL is `1000000000` lamports. Common tokens accept a symbol in place of the mint address.
+
+    ```bash
+    curl "https://swap-api.sodae.io/v1/quote?input_mint=SOL&output_mint=USDC&amount=1000000000&slippage_bps=50"
+    ```
+
+    ```json
+    {
+      "input_mint": "So11111111111111111111111111111111111111112",
+      "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "in_atoms": 1000000000,
+      "out_atoms": 104555250,
+      "out_ui": 104.55525,
+      "min_out_atoms": 104032473,
+      "slippage_bps": 50,
+      "price_impact_bps": 0,
+      "route": [
+        { "pool": "7wXt…", "dex": "Whirlpool", "in_mint": "So111…", "out_mint": "EPjF…",
+          "in_atoms": 1000000000, "out_atoms": 104555250, "fee_bps": 4 }
+      ],
+      "splits": [],
+      "provider": "soda"
+    }
+    ```
+
+    `out_atoms` is the expected output. `min_out_atoms` is the floor the transaction enforces after slippage.
+  </Step>
+  <Step title="Build the swap">
+    Send the same parameters plus the wallet that will sign. The response holds a base64 transaction for that wallet.
+
+    ```bash
+    curl -X POST https://swap-api.sodae.io/v1/swap \
+      -H "content-type: application/json" \
+      -d '{
+        "input_mint": "SOL",
+        "output_mint": "USDC",
+        "amount_in_atoms": 1000000000,
+        "slippage_bps": 50,
+        "user_wallet": "<your wallet public key>"
+      }'
+    ```
+
+    ```json
+    {
+      "tx_base64": "gQ…",
+      "recent_blockhash": "9bK…",
+      "last_valid_block_height": 351234567,
+      "lookup_tables": [],
+      "provider": "soda",
+      "route": { "out_atoms": 104555250, "min_out_atoms": 104032473, "legs": [ … ] }
+    }
+    ```
+  </Step>
+  <Step title="Sign and send">
+    Decode the transaction, sign it with the wallet named in `user_wallet` and send it to any RPC. Confirm it with `recent_blockhash` and `last_valid_block_height`.
+
+    <Warning>
+      The transaction uses Solana transaction format v1. `@solana/web3.js` 1.x cannot decode it. See [Transaction format](/api/swap#transaction-format).
+    </Warning>
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={3}>
+  <Card title="TypeScript guide" href="/guides/typescript">A complete quote, swap, sign and send flow.</Card>
+  <Card title="Streaming quotes" href="/api/quote-stream">Keep a price fresh without polling.</Card>
+  <Card title="Errors" href="/errors">What `no_route` and `price_impact_too_high` mean.</Card>
+</CardGroup>

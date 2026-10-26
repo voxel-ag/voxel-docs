@@ -1,0 +1,40 @@
+---
+title: "Venues"
+description: "The DEX programs Voxel decodes and prices."
+---
+
+Voxel prices more than 100 Solana DEX programs. Every pool on a listed program is covered. There is no allowlist of pools, so a new market is routable from its first trade.
+
+The `dex` field in a [quote](/api/quote) or [stream](/api/market-stream) carries the venue name as shown below. Where you send a venue name, for example the `dex` filter on `/v1/stream`, the CamelCase and lowercase spellings are also accepted.
+
+## Automated market makers
+
+Raydium AMM, Raydium CP, Meteora, Meteora DAMM v2, Orca V1, Token Swap, Saber, Mercurial, Saros, Aldrin, Aldrin V2, FluxBeam, StepN, DexLab, Penguin, Bonkswap, Guacswap, Oasis, Vertigo, Zora, GooseFX GAMMA, GoosefxSslV1, GoosefxSslV2, Stabble Stable Swap, Stabble Weighted Swap, Deltafi, Symmetry, MSwap, Perena, PerenaBankineco, Hadron, Hadron V2, DefiTuna, Gavel, Riptide, Omnipair, MetaDAO.
+
+## Concentrated liquidity
+
+Raydium CLMM, Whirlpool, Byreal, PancakeSwap, Crema, Cykura, Invariant, Meteora DLMM, Saros DLMM.
+
+## Order books
+
+Phoenix, OpenbookV2, Openbook, Manifest, Dradex, Deriverse.
+
+## Launchpads and bonding curves
+
+Pump.fun, Pump.fun Amm, Dynamic Bonding Curve, Raydium Launchlab, Moonit, Boop, HeavenAmm, CreatorFun, TokenMill, Trench, Virtuals, Trends, Mayhem, MasterMind.
+
+## Market makers and oracle-priced venues
+
+HumidiFi, SolFi, SolFi V2, ZeroFi, Obric V2, Lifinity V1, Lifinity V2, Alphaq, BisonFi, TesseraV, Goonfi, GoonFi V2, Quantum, Flux, Aquifer, Archer, 1DEX, PrintDex, Obsidian, Scorch, WhaleStreet, Woofi, Denali, TaurusFi, Kipseli, Quay, MoonPay, Flint, Exponent.
+
+## Staking, lending and structured products
+
+Sanctum, Sanctum Infinity, VaultLiquidUnstake, Jupiter Perpetuals, Jupiter Lend Earn, JupLend AMM, Hylo Exchange, Hylo Stability Pool, BisonFiPredict.
+
+<Note>
+  Some market makers only accept swaps from approved callers. Voxel prices these venues at their public terms so quotes stay comparable, and routes through them when the route executes. Simulate before sending if you need certainty on a specific route.
+</Note>
+
+## Token programs
+
+Both SPL Token and Token-2022 mints are supported. Token-2022 transfer fees are included in quotes.

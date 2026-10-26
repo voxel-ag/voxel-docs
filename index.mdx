@@ -1,0 +1,58 @@
+---
+title: "Introduction"
+description: "Voxel finds the best route for a Solana token swap across every liquidity venue and hands you a transaction to sign."
+---
+
+<Frame>
+  <img src="/images/og/voxel-banner.png" alt="Voxel: every pool, one best route" />
+</Frame>
+
+Voxel is a Solana swap aggregator. It listens to every DEX program on mainnet, keeps each pool's state in memory and prices a swap with the same math the pool's program runs. A quote is computed in milliseconds from live state, not fetched from a third party, and a swap is returned as an unsigned transaction that your wallet signs.
+
+The same engine runs the [Voxel app](https://voxel.ag) and the public API at `https://swap-api.sodae.io`.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Your first quote and swap in two requests.
+  </Card>
+  <Card title="How routing works" icon="route" href="/routing">
+    Live state, native pricing and split routes in one transaction.
+  </Card>
+  <Card title="Quote" icon="calculator" href="/api/quote">
+    Price a swap and see the route it would take.
+  </Card>
+  <Card title="Swap" icon="arrow-right-arrow-left" href="/api/swap">
+    Get an unsigned transaction for the quoted route.
+  </Card>
+  <Card title="Streams" icon="tower-broadcast" href="/api/quote-stream">
+    Live quotes, pool ticks and USD prices over WebSocket.
+  </Card>
+  <Card title="Venues" icon="layer-group" href="/venues">
+    More than 100 DEX programs, priced natively.
+  </Card>
+  <Card title="TypeScript guide" icon="code" href="/guides/typescript">
+    Quote, swap, sign and send from a browser or Node.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/errors">
+    Every error code, what it means and what to do.
+  </Card>
+</CardGroup>
+
+## What you get
+
+| Endpoint | Use it for |
+|---|---|
+| [`GET /v1/quote`](/api/quote) | Best output for an input amount, with the full route and any splits |
+| [`POST /v1/swap`](/api/swap) | The same route as an unsigned transaction for a wallet |
+| [`/v1/quote-stream`](/api/quote-stream) | One pair re-quoted continuously over WebSocket |
+| [`/v1/stream`](/api/market-stream) | Per-pool price ticks and per-token USD prices over WebSocket |
+| [`GET /v1/price`](/api/prices) | USD prices derived from live routing |
+| [`GET /v1/token`, `/v1/tokens`](/api/tokens) | Token metadata, icons and search |
+| [`GET /v1/pools/{mint}`](/api/pools) | Every pool a token trades on, with reserves and last price |
+
+## Design
+
+- **Everything streams.** Pool state comes from the live account and transaction firehose. Nothing is polled or cached from another aggregator, so a new pool is routable from its first trade.
+- **Native pricing.** Each venue is quoted with its own curve, fee schedule and order book, in integer arithmetic. There is no simulation on the quote or swap path.
+- **One transaction.** Split routes across several pools and hops compile into a single transaction that fits mainnet limits.
+- **No custody.** The API never holds keys. It returns an unsigned transaction and your wallet signs it.

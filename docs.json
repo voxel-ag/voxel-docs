@@ -1,0 +1,71 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Voxel",
+  "description": "Solana swap aggregator: live quotes, split routes and unsigned transactions over one HTTP API.",
+  "colors": {
+    "primary": "#3c28f9",
+    "light": "#31a3f6",
+    "dark": "#3c28f9"
+  },
+  "favicon": "/favicon.png",
+  "seo": {
+    "metatags": {
+      "og:image": "https://docs.voxel.ag/images/og/voxel-banner.png",
+      "twitter:image": "https://docs.voxel.ag/images/og/voxel-banner.png"
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://voxel.ag"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "https://discord.gg/kAYwunUTbh"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Open Voxel",
+      "href": "https://voxel.ag"
+    }
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get started",
+        "pages": ["index", "quickstart", "routing", "venues"]
+      },
+      {
+        "group": "API",
+        "pages": [
+          "api/overview",
+          "api/quote",
+          "api/swap",
+          "api/quote-stream",
+          "api/market-stream",
+          "api/prices",
+          "api/tokens",
+          "api/pools"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": ["guides/typescript", "guides/app"]
+      },
+      {
+        "group": "Reference",
+        "pages": ["errors", "support"]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/VoxelExchange",
+      "discord": "https://discord.gg/kAYwunUTbh"
+    }
+  }
+}

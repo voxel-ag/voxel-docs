@@ -1,0 +1,46 @@
+---
+title: "How routing works"
+description: "Live state in, native math, split routes out."
+---
+
+Voxel does not ask other aggregators for prices. It rebuilds every pool's state from the Solana firehose and prices a swap by running each venue's own math on that state.
+
+## Live state
+
+The engine subscribes to account writes and transactions for every supported DEX program. Each swap, deposit, order and parameter change updates the pool in memory within the same slot it landed. A pool that has never traded since Voxel last saw it still carries its last known state, with its age reported in [`/v1/pools/{mint}`](/api/pools).
+
+Because coverage follows from decoding the programs rather than a curated list, a new pool on a supported program is routable from its first trade.
+
+## Native pricing
+
+Each venue has its own quoter: constant product, stable curves, concentrated liquidity ticks and bins, central limit order books, bonding curves, oracle-priced market makers and staking pools. Quoters work in integer base units with the same rounding the program applies, so the quoted output matches what the chain pays out.
+
+Pricing never simulates a transaction. A quote is a pure function of pool state and the input amount, which is why it is fast enough to re-run on every tick for a [streaming quote](/api/quote-stream).
+
+## Finding the route
+
+For each request the engine:
+
+1. **Enumerates candidates.** Paths of up to `max_hops` legs are searched at the full input size and at smaller fractions of it, so pools that only make sense for part of the order are still found.
+2. **Builds a pool graph.** Every leg of the best candidate routes becomes an arc, plus sibling pools for the same token pairs, so a direct pool and a hub route are both in play.
+3. **Allocates flow.** The input is split into chunks. Each chunk takes the best path through the graph priced on each pool's marginal output, so earlier chunks' price impact is charged to later ones.
+4. **Evaluates exactly.** Parallel pools between the same two tokens are re-filled at fine resolution, which sizes pools that quote only up to a cap.
+5. **Fits one transaction.** Branches compile into a single Solana transaction. If the split does not fit the byte, account or compute limits, the allocation is redone under a tighter budget until it does.
+6. **Chooses.** The split is served only when it beats the best single route. Otherwise the single route wins.
+
+The route returned by [`/v1/quote`](/api/quote) is the route [`/v1/swap`](/api/swap) builds. Both run the same selection with the same guards.
+
+## Guards
+
+| Guard | Behaviour |
+|---|---|
+| Price impact | A route whose impact exceeds `max_price_impact_bps` (default 10%) is refused with `price_impact_too_high`. |
+| Round trip | A route that would make money by swapping back is a sign of stale or broken pool state and is refused with `round_trip_unsound`. |
+| Liquidity floor | Pools below `min_liquidity` USD are not considered. |
+| Slippage | `min_out_atoms` is enforced on chain. The transaction fails rather than filling below it. |
+
+## What a swap transaction contains
+
+One transaction holds every leg of the chosen route, in execution order, through Voxel's on-chain router. Output SOL is delivered as wrapped SOL. The compute budget requests the full limit, and an optional priority fee is added from `priority_fee_lamports`.
+
+Transactions are not simulated server side. If you want a guarantee before sending, simulate the returned transaction against your RPC.

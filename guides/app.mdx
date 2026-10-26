@@ -1,0 +1,40 @@
+---
+title: "Using the app"
+description: "Swapping at voxel.ag."
+---
+
+The [Voxel app](https://voxel.ag) is a single swap surface on top of the API described in these docs. Everything it shows comes from the same endpoints you can call yourself.
+
+## Swapping
+
+<Steps>
+  <Step title="Connect a wallet">
+    Any wallet that implements the Solana Wallet Standard appears in the connect dialog: Phantom, Solflare, Backpack and others. Nothing is installed or whitelisted on Voxel's side.
+  </Step>
+  <Step title="Pick the pair">
+    Search by symbol, name or mint address. Verified tokens are marked. Icons, liquidity and market cap come from [`/v1/tokens`](/api/tokens).
+  </Step>
+  <Step title="Enter an amount">
+    The quote updates live over the [quote stream](/api/quote-stream) while you type and keeps updating until you swap, so the number on screen is never more than a few hundred milliseconds old.
+  </Step>
+  <Step title="Review the route">
+    The route panel draws every pool the swap passes through, with the venue and the share of the order on each branch. Quote details show the expected output, the minimum you will receive after slippage, price impact and fees.
+  </Step>
+  <Step title="Swap">
+    Voxel requests the transaction from [`/v1/swap`](/api/swap), your wallet signs it, and the app sends it and tracks confirmation. The result links to the explorer you chose in settings.
+  </Step>
+</Steps>
+
+## Settings
+
+| Setting | Description |
+|---|---|
+| Slippage tolerance | A preset or a custom value in percent. Fixed for every swap until you change it. The transaction fails rather than fill below the resulting minimum |
+| Priority fee | Extra lamports paid to the validator for faster inclusion |
+| Explorer | Where transaction links open after a swap |
+
+## What the app does not do
+
+- It never holds funds or keys. Every transaction is signed in your wallet.
+- It does not simulate before sending. If a route cannot execute, the transaction fails on chain and you pay only the network fee.
+- It does not add a platform fee. The quoted output is what the route delivers.

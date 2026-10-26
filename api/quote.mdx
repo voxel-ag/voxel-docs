@@ -1,0 +1,102 @@
+---
+title: "Quote"
+description: "GET /v1/quote prices a swap and returns the route it would take."
+---
+
+```
+GET https://swap-api.sodae.io/v1/quote
+```
+
+A quote is computed from live pool state. It is the exact route [`/v1/swap`](/api/swap) builds for the same parameters.
+
+## Parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `input_mint` | string | required | Mint address or symbol of the token you sell |
+| `output_mint` | string | required | Mint address or symbol of the token you buy |
+| `amount` | integer | required | Input amount in base units |
+| `slippage_bps` | integer | `50` | Slippage tolerance. Sets `min_out_atoms` |
+| `max_hops` | integer | `3` | Longest path considered, in legs |
+| `max_price_impact_bps` | integer | `1000` | Refuse routes above this impact. `10000` or more disables the ceiling |
+| `min_liquidity` | number | server default | Ignore pools below this USD liquidity |
+| `max_routes` | integer | `4096` | Cap on candidate routes enumerated |
+
+## Example
+
+```bash
+curl "https://swap-api.sodae.io/v1/quote?input_mint=SOL&output_mint=JUP&amount=10000000000&slippage_bps=30"
+```
+
+```json
+{
+  "input_mint": "So11111111111111111111111111111111111111112",
+  "output_mint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+  "in_atoms": 10000000000,
+  "out_atoms": 3141592653,
+  "out_ui": 3141.592653,
+  "min_out_atoms": 3132167875,
+  "slippage_bps": 30,
+  "price_impact_bps": 2,
+  "route": [
+    { "pool": "7wXt…", "dex": "Whirlpool", "in_mint": "So111…", "out_mint": "EPjF…",
+      "in_atoms": 10000000000, "out_atoms": 1045552500, "fee_bps": 4 },
+    { "pool": "3bRT…", "dex": "Meteora DLMM", "in_mint": "EPjF…", "out_mint": "JUPy…",
+      "in_atoms": 1045552500, "out_atoms": 3141592653, "fee_bps": 10 }
+  ],
+  "alternative_routes": [],
+  "splits": [
+    { "portion_bps": 6000, "in_atoms": 6000000000, "out_atoms": 1885000000,
+      "legs": [ … ] },
+    { "portion_bps": 4000, "in_atoms": 4000000000, "out_atoms": 1256592653,
+      "legs": [ … ] }
+  ],
+  "provider": "soda"
+}
+```
+
+## Response
+
+| Field | Description |
+|---|---|
+| `input_mint`, `output_mint` | Canonical mint addresses, with symbols resolved |
+| `in_atoms` | Input amount, base units |
+| `out_atoms` | Expected output, base units |
+| `out_ui` | `out_atoms` as a decimal, for display |
+| `min_out_atoms` | Output floor after `slippage_bps`. The transaction fails below it |
+| `slippage_bps` | Slippage applied |
+| `price_impact_bps` | Price impact of the whole route, basis points. `null` when the pair has no reference price |
+| `route` | The best single route, as an ordered list of legs |
+| `alternative_routes` | Other complete single routes, best first |
+| `splits` | Branches of the split route when one is served. Empty when the single route won |
+| `provider` | Always `soda` |
+
+The response also carries timing counters such as `compute_time_us` and a `flow` object. These describe the server's work on the request and are not part of the contract. Ignore them.
+
+### Legs
+
+| Field | Description |
+|---|---|
+| `pool` | Pool address |
+| `dex` | Venue name. See [Venues](/venues) |
+| `in_mint`, `out_mint` | Tokens the leg converts between |
+| `in_atoms`, `out_atoms` | Amount in and out of this leg |
+| `fee_bps` | Pool fee charged on this leg |
+
+### Splits
+
+When `splits` is non-empty, the transaction executes the split, not `route`. Each entry is one branch of the input: a set of pools connected through intermediate tokens. `portion_bps` is its share of the input. A branch's `legs` are in execution order and carry their own amounts, so a branch can fan out across several pools at one hop and merge at the next.
+
+The totals in `out_atoms` and `min_out_atoms` always describe what the transaction delivers, whether it is the single route or the split.
+
+## Errors
+
+| Status | Body | Meaning |
+|---|---|---|
+| 400 | `{"error":"bad input_mint"}`, `{"error":"bad output_mint"}` | The mint is not base58 and not a known symbol |
+| 404 | `{"error":"no_route"}` | No path between the two tokens with liquidity above the floor |
+| 422 | `{"error":"price_impact_too_high","code":"price_impact_too_high","hint":"…"}` | Every route exceeds `max_price_impact_bps` |
+| 422 | `{"error":"round_trip_unsound","code":"round_trip_unsound","hint":"…"}` | The route would profit from being reversed, which signals unsafe pool state |
+| 503 | `{"error":"compute pool unavailable"}` | Quote capacity is exhausted. Retry with backoff |
+
+See [Errors](/errors) for how to handle each one.

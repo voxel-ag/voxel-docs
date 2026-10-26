@@ -1,0 +1,101 @@
+---
+title: "Market stream"
+description: "WebSocket /v1/stream pushes per-pool price ticks and per-token USD prices."
+---
+
+```
+wss://swap-api.sodae.io/v1/stream
+```
+
+Two channels share one socket. `pools` sends a tick for every swap on the pools you filter for. `prices` sends a USD price whenever a token you watch is repriced. Messages on this endpoint are camelCase. Every client field also accepts its snake_case spelling.
+
+## Welcome
+
+The server speaks first, so limits are discoverable:
+
+```json
+{"type":"welcome","protocolVersion":1,"ts":1788776749969,"slot":445042502,
+ "channels":["pools","prices"],
+ "limits":{"maxSubscriptions":2,"maxPools":500,"maxMints":200,"maxPriceMints":100,
+           "minIntervalMs":100,"maxIntervalMs":5000,"maxTicksPerFrame":1000,
+           "idleTimeoutSec":120,"clientFramesPer10s":20}}
+```
+
+## Subscribe to pools
+
+```json
+{"id":"1","method":"subscribe","channel":"pools",
+ "pools":["58oQ…"],"mints":["So111…"],"dex":["Whirlpool","Meteora DLMM"],
+ "all":false,"intervalMs":0,"maxTicksPerFrame":200}
+```
+
+| Field | Description |
+|---|---|
+| `pools` | Pool addresses to watch, up to 500 |
+| `mints` | Watch every pool that has this token on either side, up to 200 |
+| `dex` | Narrow to these venues. See [Venues](/venues) |
+| `all` | `true` for the unfiltered firehose. Must be explicit |
+| `intervalMs` | `0` pushes immediately. `100` to `5000` coalesces; within a window repeat updates to one pool collapse to the latest |
+| `maxTicksPerFrame` | Cap per frame, default 200, max 1000. Overflow is dropped, keeping the deepest pools, and `dropped` reports the count |
+
+The filter is `(pools OR mints) AND dex`. An empty filter is an error; ask for `all: true` if you want everything. Unknown venue names and unparseable mints are reported back in the acknowledgement and do not fail the subscription.
+
+```json
+{"type":"subscribed","channel":"pools","id":"1","ts":…,"slot":…,
+ "filter":{"pools":[…],"mints":[…],"dex":["Whirlpool"],"all":false},
+ "combine":"(pools OR mints) AND dex","intervalMs":0,"maxTicksPerFrame":200,"unknownDex":[],"invalidMints":[]}
+```
+
+## Subscribe to prices
+
+```json
+{"id":"2","method":"subscribe","channel":"prices","mints":["So111…"],"minChangeBps":5}
+```
+
+`mints` takes up to 100 tokens. `minChangeBps` suppresses updates smaller than that move.
+
+## Data frames
+
+```json
+{"type":"pools","ts":…,"slot":445042502,"count":2,"dropped":0,"data":[
+  {"pool":"58oQ…","dex":"Meteora DLMM","baseMint":"So111…","quoteMint":"EPjF…",
+   "price":104.5513,"baseReserveUi":812.44,"quoteReserveUi":84941.9,
+   "feeBps":10,"slot":445042501,"txIndex":142,"updatedAtMs":…,"signature":"5xq…"}]}
+```
+
+```json
+{"type":"prices","ts":…,"slot":…,"count":1,"data":[
+  {"mint":"So111…","usdPrice":104.56,"decimals":9,"slot":…,"changeBps":12,"updatedAtMs":…}]}
+```
+
+- `price` is quote per base from the last swap on that pool, and `signature` is the transaction that set it. `txIndex` and `signature` are left out when unknown.
+- `usdPrice` is the same value [`/v1/price`](/api/prices) returns, from the same computation, so the two never disagree.
+- The `prices` channel is event driven. A token is repriced when a pool it sits on trades.
+
+## Control
+
+```json
+{"id":"3","method":"unsubscribe","channel":"pools"}
+{"id":"4","method":"ping"}
+```
+
+Omit `channel` on unsubscribe to drop both. Ping answers `{"type":"pong","ts":…,"id":"4"}`. The server also pings every 30 s.
+
+```json
+{"type":"notice","code":"lagged","droppedBatches":3,"ts":…}
+{"type":"error","id":"1","code":"EMPTY_FILTER","message":"…","ts":…}
+```
+
+A consumer that falls behind gets `lagged` and should re-snapshot from [`/v1/pools/{mint}`](/api/pools). Error codes and close codes are listed under [Errors](/errors#market-stream).
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Sockets per IP | 8. A ninth is refused with HTTP `503` before the upgrade |
+| Client frames | 20 per 10 s |
+| Inbound frame size | 64 KiB |
+| Idle timeout | 120 s |
+| Lag tolerance | 3 lag notices in 60 s, then close |
+
+With `intervalMs: 0` a subscription on SOL alone produces a few hundred frames per second at busy times. Set an interval if you would rather have fewer, larger frames.

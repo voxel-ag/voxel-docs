@@ -1,0 +1,123 @@
+---
+title: "TypeScript"
+description: "Quote, swap, sign and send from a browser or Node."
+---
+
+Everything below uses `fetch` and `WebSocket`, so it runs unchanged in a browser or Node 18 and later.
+
+## Amounts
+
+Work in base units as `bigint`. Parse the response with a reviver so large amounts do not pass through a double.
+
+```typescript
+const BASE = "https://swap-api.sodae.io";
+
+const bigintFields = new Set(["in_atoms", "out_atoms", "min_out_atoms", "amount"]);
+const parse = (text: string) =>
+  JSON.parse(text, (k, v) => (bigintFields.has(k) && typeof v === "number" ? BigInt(v) : v));
+
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(BASE + path);
+  const body = parse(await res.text());
+  if (!res.ok) throw Object.assign(new Error(body.error ?? res.statusText), { status: res.status, body });
+  return body;
+}
+```
+
+<Note>
+  `JSON.parse` has already rounded a number above 2^53 by the time the reviver sees it. For tokens with very large supplies, parse with a bigint-aware library such as `json-bigint` instead.
+</Note>
+
+## Quote
+
+```typescript
+const q = await get<Quote>(
+  `/v1/quote?input_mint=SOL&output_mint=USDC&amount=${1_000_000_000n}&slippage_bps=50`,
+);
+console.log(q.out_atoms, q.min_out_atoms, q.route.map((l) => l.dex));
+```
+
+## Swap
+
+```typescript
+const res = await fetch(BASE + "/v1/swap", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    input_mint: "SOL",
+    output_mint: "USDC",
+    amount_in_atoms: 1_000_000_000,
+    slippage_bps: 50,
+    user_wallet: wallet.address,
+    priority_fee_lamports: 100_000,
+  }),
+});
+const swap = await res.json();
+if (!res.ok) throw new Error(swap.error);
+```
+
+## Sign and send
+
+The transaction is [format v1](/api/swap#transaction-format). Decode it with a v1-aware library. `@solana/web3.js` 1.x throws on the version byte.
+
+```typescript
+const bytes = Uint8Array.from(atob(swap.tx_base64), (c) => c.charCodeAt(0));
+
+// Decode, sign with the key for user_wallet, and serialize with your v1-aware library.
+const signed = await signV1Transaction(bytes, wallet);
+
+const sig = await rpc.sendTransaction(signed, { encoding: "base64" });
+```
+
+In a browser with a Wallet Standard wallet, pass the decoded transaction to the wallet's sign method. The wallet signs and you send the bytes it returns.
+
+Confirm against `swap.last_valid_block_height`. Once the chain is past it, request a new swap rather than resending.
+
+## Streaming quote
+
+```typescript
+function streamQuote(params: object, onQuote: (q: Quote) => void) {
+  const ws = new WebSocket(BASE.replace("https", "wss") + "/v1/quote-stream");
+  ws.onopen = () => ws.send(JSON.stringify(params));
+  ws.onmessage = (ev) => {
+    const msg = parse(ev.data);
+    if (!("error" in msg)) onQuote(msg);
+  };
+  ws.onclose = () => setTimeout(() => streamQuote(params, onQuote), 1000);
+  return { update: (p: object) => ws.send(JSON.stringify(p)), close: () => ws.close() };
+}
+
+const s = streamQuote({ input_mint: "SOL", output_mint: "USDC", amount: 1_000_000_000 }, render);
+s.update({ input_mint: "SOL", output_mint: "USDC", amount: 5_000_000_000 });
+```
+
+## Errors
+
+```typescript
+try {
+  await get("/v1/quote?input_mint=SOL&output_mint=" + mint + "&amount=1");
+} catch (e: any) {
+  if (e.status === 404) showNoRoute();
+  else if (e.body?.code === "price_impact_too_high") askForSmallerSize(e.body.hint);
+  else if (e.status === 503) retryLater();
+  else throw e;
+}
+```
+
+See [Errors](/errors) for the full list.
+
+## Types
+
+```typescript
+interface Leg {
+  pool: string; dex: string; in_mint: string; out_mint: string;
+  in_atoms: bigint; out_atoms: bigint; fee_bps: number;
+}
+interface Split { portion_bps: number; in_atoms: bigint; out_atoms: bigint; legs: Leg[] }
+interface Quote {
+  input_mint: string; output_mint: string;
+  in_atoms: bigint; out_atoms: bigint; out_ui: number; min_out_atoms: bigint;
+  slippage_bps: number; price_impact_bps: number | null;
+  route: Leg[]; alternative_routes: Leg[][]; splits: Split[]; provider: "soda";
+}
+```

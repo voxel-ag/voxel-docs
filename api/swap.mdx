@@ -1,0 +1,110 @@
+---
+title: "Swap"
+description: "POST /v1/swap returns an unsigned transaction for the best route."
+---
+
+```
+POST https://swap-api.sodae.io/v1/swap
+Content-Type: application/json
+```
+
+The swap runs the same route selection as [`/v1/quote`](/api/quote), then compiles the route into one transaction for the wallet you name. The server never holds keys. You sign and send.
+
+## Request
+
+```json
+{
+  "input_mint": "SOL",
+  "output_mint": "USDC",
+  "amount_in_atoms": 1000000000,
+  "user_wallet": "7Zq…",
+  "slippage_bps": 50,
+  "max_hops": 3,
+  "max_price_impact_bps": 1000,
+  "priority_fee_lamports": 100000
+}
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `input_mint` | string | required | Mint or symbol of the token you sell |
+| `output_mint` | string | required | Mint or symbol of the token you buy |
+| `amount_in_atoms` | integer | required | Input amount in base units |
+| `user_wallet` | string | required | Public key that will sign and pay fees |
+| `slippage_bps` | integer | `50` | Slippage tolerance |
+| `max_hops` | integer | `3` | Longest path considered |
+| `max_price_impact_bps` | integer | `1000` | Same ceiling as `/v1/quote` |
+| `min_liquidity` | number | server default | Same floor as `/v1/quote` |
+| `max_routes` | integer | `4096` | Same cap as `/v1/quote` |
+| `priority_fee_lamports` | integer | `0` | Priority fee added to the transaction, in lamports |
+| `input_token_program` | string | from the mint | Override the input token program |
+| `output_token_program` | string | from the mint | Override the output token program |
+
+The token program is resolved from the mint. Only set an override when you already know the owning program; a wrong value fails on chain.
+
+## Response
+
+```json
+{
+  "tx_base64": "gQEAAQ…",
+  "recent_blockhash": "9bKxN…",
+  "last_valid_block_height": 351234567,
+  "lookup_tables": [],
+  "provider": "soda",
+  "route": {
+    "input_mint": "So111…",
+    "output_mint": "EPjF…",
+    "in_atoms": 1000000000,
+    "out_atoms": 104555250,
+    "out_ui": 104.55525,
+    "min_out_atoms": 104032473,
+    "slippage_bps": 50,
+    "price_impact_bps": 0,
+    "legs": [ … ],
+    "alternative_routes": [],
+    "splits": []
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `tx_base64` | The unsigned transaction, base64 |
+| `recent_blockhash` | Blockhash the transaction was built with |
+| `last_valid_block_height` | Last block height at which it can land. Use both to confirm |
+| `lookup_tables` | Always empty. Transaction v1 has no lookup tables |
+| `route` | The quote this transaction executes. `legs` is the single route; `splits` is populated when a split is served |
+
+`route.out_atoms` is the quoted output. `route.min_out_atoms` is enforced on chain. Output SOL arrives as wrapped SOL.
+
+## Transaction format
+
+<Warning>
+  The transaction is Solana transaction format **v1**. It starts with the version byte `0x81`, not a signature count.
+</Warning>
+
+`@solana/web3.js` 1.x and other decoders that expect legacy or v0 messages throw on it. Decode and sign with a library that understands transaction v1, such as `@solana/kit` 3 or later, and send the serialized bytes with any RPC's `sendTransaction`. Wallets that implement the Solana Wallet Standard sign v1 transactions through their normal sign method.
+
+## Sign and send
+
+<Steps>
+  <Step title="Decode">Base64-decode `tx_base64` into a v1 transaction.</Step>
+  <Step title="Sign">Sign with the key for `user_wallet`. The transaction has no other signers.</Step>
+  <Step title="Send">Submit the signed bytes to your RPC. Skipping preflight is safe only if you simulated yourself.</Step>
+  <Step title="Confirm">Poll the signature until it is confirmed, or until the chain passes `last_valid_block_height`, at which point the transaction can no longer land and you should request a new swap.</Step>
+</Steps>
+
+Swap transactions are not simulated server side. To fail before paying a fee, simulate the signed transaction against your RPC first.
+
+## Errors
+
+| Status | Body | Meaning |
+|---|---|---|
+| 400 | `{"error":"invalid input_mint"}`, `{"error":"invalid output_mint"}`, `{"error":"invalid user_wallet"}` | A mint or the wallet did not parse |
+| 404 | `{"error":"no_route"}` | No route, as for `/v1/quote` |
+| 422 | `{"error":"price_impact_too_high","code":"…"}` | Impact ceiling, as for `/v1/quote` |
+| 422 | `{"error":"round_trip_unsound","code":"…"}` | Round-trip guard, as for `/v1/quote` |
+| 500 | `{"error":"…","pool":"…"}` | The route could not be compiled. `pool` names the leg that failed when known |
+| 503 | `{"error":"compute pool unavailable"}` | Capacity exhausted. Retry with backoff |
+
+A branch that cannot be built is excluded and selection re-runs before a 500 is returned, so a 500 means no buildable route remained.

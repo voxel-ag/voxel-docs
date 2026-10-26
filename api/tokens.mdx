@@ -1,0 +1,66 @@
+---
+title: "Tokens"
+description: "Metadata, icons, verification and search for Solana tokens."
+---
+
+## `GET /v1/token/{mint}`
+
+One token by base58 mint address. Symbols are not accepted on this route.
+
+```bash
+curl https://swap-api.sodae.io/v1/token/So11111111111111111111111111111111111111112
+```
+
+```json
+{
+  "mint": "So11111111111111111111111111111111111111112",
+  "name": "Wrapped SOL",
+  "symbol": "SOL",
+  "decimals": 9,
+  "icon": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png",
+  "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  "fdv": 66216567539.25,
+  "mcap": 61255130678.89,
+  "liquidity": 830235039.47,
+  "is_stable": false,
+  "is_lst": false,
+  "verified": true,
+  "circ_supply": 0.0,
+  "total_supply": 0.0
+}
+```
+
+| Field | Description |
+|---|---|
+| `decimals` | Base-unit decimals. Use this to convert `*_atoms` |
+| `icon` | Icon URL from the token's metadata, or `null` |
+| `token_program` | SPL Token or Token-2022 program that owns the mint |
+| `fdv`, `mcap`, `liquidity` | USD figures from live pricing and pool reserves |
+| `is_stable`, `is_lst` | Stablecoin and liquid-staking-token flags |
+| `verified` | On the verified list |
+| `circ_supply`, `total_supply` | Fetched live with a short timeout. Both read `0.0` when it expires, and the two are currently equal |
+
+## `GET /v1/tokens`
+
+Several tokens at once. Up to 50 mints or symbols, comma separated. Returns a plain array of the token object above, with `circ_supply` and `total_supply` set to `null`.
+
+```bash
+curl "https://swap-api.sodae.io/v1/tokens?mints=SOL,USDC,JUP"
+```
+
+## `GET /v1/tokens/search`
+
+```bash
+curl "https://swap-api.sodae.io/v1/tokens/search?q=bonk&limit=10"
+```
+
+```json
+{"count": 3, "tokens": [ … ]}
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `q` | required | Symbol, name or mint fragment |
+| `limit` | `50` | 1 to 100 |
+
+Results rank exact symbol matches first, then symbol prefixes, name prefixes and substrings, with liquidity breaking ties. Note that search returns `{count, tokens}` while `/v1/tokens` returns a bare array.
